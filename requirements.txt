@@ -4,7 +4,4 @@ matplotlib
 pandas
 scikit-learn
 jupyter
-matplotlib
-pandas
-scikit-learn
-jupyter
+numpy

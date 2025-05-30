@@ -1,0 +1,11 @@
+[project]
+name = "qml_optimization"
+version = "0.1.0"
+description = "Modular QML experiments based on CVaR optimization"
+
+[tool.setuptools]
+packages = ["experiments"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
