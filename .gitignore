@@ -6,4 +6,5 @@ __pycache__/
 .DS_Store
 
 experiments/place_holder
+notebooks/place_holder
 *.egg-info/

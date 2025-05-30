@@ -51,9 +51,9 @@ def portfolio_to_qp(mu, sigma, risk_factor=0.5, budget_percent=2):
     # Convert docplex model to quadratic program
     return from_docplex_mp(mdl)
 
-def portfolio_qp_to_ising(qp, penalty):
+def portfolio_add_penalty(qp, penalty):
     """
-    Converts a constrained QuadraticProgram to an unconstrained Ising Hamiltonian.
+    Converts a constrained QuadraticProgram to an unconstrained QuadraticProgram.
 
     This is required for variational quantum algorithms (e.g., SamplingVQE),
     which cannot natively handle constraints. The equality constraint is converted
@@ -64,15 +64,12 @@ def portfolio_qp_to_ising(qp, penalty):
         penalty (float): Penalty multiplier to enforce the budget constraint.
 
     Returns:
-        Tuple[OperatorBase, float]: 
-            - The cost Hamiltonian in Ising form.
-            - The constant offset to be added back after optimization.
+        qp (Quadratic Program): The unconstrained equivalent with the penalty added to the equation
     """
 
     linear2penalty = LinearEqualityToPenalty(penalty=penalty)
     qp = linear2penalty.convert(qp)
-    res, offset = qp.to_ising()
-    return res, offset
+    return qp
 
 def classic_solve(qp):
     """
