@@ -3,10 +3,11 @@
 # Original copyright (c) IBM 2017, 2024.
 # Modified by Colin Farley (2025) for research use at HARP Research.
 
-from qiskit_algorithms import NumPyMinimumEigensolver
+from qiskit_algorithms import NumPyMinimumEigensolver, SamplingVQE, QAOA
 from qiskit_optimization.translators import from_docplex_mp
 from qiskit_optimization.algorithms import MinimumEigenOptimizer
 from qiskit_optimization.converters import LinearEqualityToPenalty
+import numpy as np
 
 from docplex.mp.model import Model
 
@@ -85,3 +86,92 @@ def classic_solve(qp):
         OptimizationResult: Solution containing optimal value, variable assignment, and status.
     """
     return MinimumEigenOptimizer(NumPyMinimumEigensolver()).solve(qp)
+
+
+def solve_with_sampling_vqe(qp, sampler, ansatz, optimizer, offset, alphas, initial_point=None):
+    """
+    Solves an unconstrained portfolio optimization problem using SamplingVQE with optional CVaR.
+
+    This function supports multiple confidence levels (alpha) and tracks optimization convergence
+    for each run. It can be used for both standard VQE (alpha=1.0) and CVaR-VQE (alpha < 1.0).
+
+    Args:
+        qp (QuadraticProgram): Unconstrained QUBO for portfolio optimization.
+        sampler (BaseSampler): Qiskit Sampler primitive (e.g., Sampler()).
+        ansatz (QuantumCircuit): Parameterized quantum circuit used to prepare trial states.
+        optimizer (Optimizer | Minimizer): Classical optimizer for variational parameters.
+        offset (float): Constant offset from Ising transformation (added back to computed values).
+        alphas (List[float]): List of confidence levels (CVaR α-values) to evaluate.
+        initial_point (np.ndarray | None): Optional initial parameter vector for the ansatz.
+
+    Returns:
+        Tuple[dict, dict]:
+            - results: Dictionary mapping alpha -> OptimizationResult
+            - objectives: Dictionary mapping alpha -> list of intermediate objective values per iteration
+    """
+    results = {}
+    objectives = {alpha: [] for alpha in alphas}
+
+    def make_callback(alpha):
+        return lambda i, params, obj, stddev: objectives[alpha].append(np.real_if_close(-(obj + offset)))
+
+    for alpha in alphas:
+        vqe = SamplingVQE(
+            sampler=sampler,
+            ansatz=ansatz,
+            optimizer=optimizer,
+            initial_point=initial_point,
+            aggregation=alpha,
+            callback=make_callback(alpha),
+        )
+        opt_alg = MinimumEigenOptimizer(vqe)
+        results[alpha] = opt_alg.solve(qp)
+
+    return results, objectives
+
+
+def solve_with_qaoa(qp, sampler, optimizer, offset, alphas, reps=1, initial_point=None, initial_state=None, mixer=None):
+    """
+    Solves an unconstrained portfolio optimization problem using QAOA with optional CVaR.
+
+    This function supports varying circuit depths (reps), confidence levels (alpha), and
+    allows for warm-started and mixer-constrained variants of QAOA.
+
+    Args:
+        qp (QuadraticProgram): Unconstrained QUBO for portfolio optimization.
+        sampler (BaseSampler): Qiskit Sampler primitive (e.g., Sampler()).
+        optimizer (Optimizer | Minimizer): Classical optimizer for variational parameters.
+        offset (float): Constant offset from Ising transformation (added back to computed values).
+        alphas (List[float]): List of confidence levels (CVaR α-values) to evaluate.
+        reps (int): Number of QAOA layers (circuit depth). Default is 1.
+        initial_point (np.ndarray | None): Optional initial parameter vector [β₀, γ₀, ..., βₚ₋₁, γₚ₋₁].
+        initial_state (QuantumCircuit | None): Optional circuit to prepend before QAOA layers.
+        mixer (QuantumCircuit | BaseOperator | None): Custom mixer for constrained optimization.
+
+    Returns:
+        Tuple[dict, dict]:
+            - results: Dictionary mapping alpha -> OptimizationResult
+            - objectives: Dictionary mapping alpha -> list of intermediate objective values per iteration
+    """
+
+    results = {}
+    objectives = {alpha: [] for alpha in alphas}
+
+    def make_callback(alpha):
+        return lambda i, params, obj, stddev: objectives[alpha].append(np.real_if_close(-(obj + offset)))
+
+    for alpha in alphas:
+        qaoa = QAOA(
+            sampler=sampler,
+            optimizer=optimizer,
+            reps=reps,
+            initial_state=initial_state,
+            mixer=mixer,
+            initial_point=initial_point,
+            aggregation=alpha,
+            callback=make_callback(alpha),  # ← safe binding
+        )
+        opt_alg = MinimumEigenOptimizer(qaoa)
+        results[alpha] = opt_alg.solve(qp)
+
+    return results, objectives
