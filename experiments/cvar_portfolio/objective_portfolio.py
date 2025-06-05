@@ -5,7 +5,7 @@
 
 from qiskit_algorithms import NumPyMinimumEigensolver, SamplingVQE, QAOA
 from qiskit_optimization.translators import from_docplex_mp
-from qiskit_optimization.algorithms import MinimumEigenOptimizer
+from qiskit_optimization.algorithms import MinimumEigenOptimizer, CplexOptimizer
 from qiskit_optimization.converters import LinearEqualityToPenalty
 import numpy as np
 
@@ -87,6 +87,8 @@ def classic_solve(qp):
     """
     return MinimumEigenOptimizer(NumPyMinimumEigensolver()).solve(qp)
 
+def classic_relaxed_solve(qp):
+    return CplexOptimizer().solve(qp)
 
 def solve_with_sampling_vqe(qp, sampler, ansatz, optimizer, offset, alphas, initial_point=None):
     """
@@ -175,3 +177,27 @@ def solve_with_qaoa(qp, sampler, optimizer, offset, alphas, reps=1, initial_poin
         results[alpha] = opt_alg.solve(qp)
 
     return results, objectives
+
+
+def format_qaoa_samples(samples, max_len: int = 10):
+    """
+    Filter and format QAOA samples for display (works for sampling VQE as well).
+
+    Filters only feasible samples (sum(x) == 3), then sorts them by descending
+    objective value and formats them with bitstring, value, and sampling probability.
+
+    Args:
+        samples (List[SolutionSample]): Samples returned by MinimumEigenOptimizer.
+        max_len (int): Number of top entries to display.
+
+    Returns:
+        List[str]: Formatted summary strings for the top samples.
+    """
+    qaoa_res = []
+    for s in samples:
+        if sum(s.x) == 3:
+            qaoa_res.append(("".join([str(int(_)) for _ in s.x]), s.fval, s.probability))
+
+    res = sorted(qaoa_res, key=lambda x: -x[1])[0:max_len]
+
+    return [(_[0] + f": value: {_[1]:.3f}, probability: {1e2*_[2]:.1f}%") for _ in res]
