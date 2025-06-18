@@ -5,6 +5,6 @@ __pycache__/
 .env
 .DS_Store
 
-experiments/place_holder
-notebooks/place_holder
+notebooks/box_algorithm/tests.ipynb
+notebooks/portfolio_optimixation/comparison.ipynb
 *.egg-info/

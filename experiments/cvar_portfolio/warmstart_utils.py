@@ -26,7 +26,23 @@ def relax_problem(problem):
 
     return relaxed_problem
 
+
 def generate_mixer_and_initial_state(c_stars, sigma):
+    """
+    Generate a warm-start initial state and custom mixer circuit for QAOA.
+
+    This function constructs:
+    - An initial quantum state that encodes prior knowledge from a continuous
+      relaxation of the QUBO (c_stars).
+    - A custom mixer Hamiltonian circuit that ensures the initial state is a ground state.
+
+    Args:
+        c_stars (List[float]): Relaxed solution from the continuous optimization problem.
+        sigma (np.ndarray): Covariance matrix used to determine the number of qubits.
+
+    Returns:
+        Tuple[QuantumCircuit, QuantumCircuit]: Initial state and custom mixer as QuantumCircuits.
+    """
     beta = Parameter("β")
     thetas = [2 * np.arcsin(np.sqrt(c_star)) for c_star in c_stars]
 
